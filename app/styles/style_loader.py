@@ -35,14 +35,14 @@ def load_custom_css(dark_mode: bool = False):
     }}
 
     /* Hide Default Header, Footer & Auto Multipage Nav */
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header[data-testid="stHeader"] {
+    #MainMenu {{visibility: hidden;}}
+    footer {{visibility: hidden;}}
+    header[data-testid="stHeader"] {{
         background: transparent !important;
-    }
-    [data-testid="stSidebarNav"] {
+    }}
+    [data-testid="stSidebarNav"] {{
         display: none !important;
-    }
+    }}
 
     /* Streamlit Sidebar Customization */
     [data-testid="stSidebar"] {{

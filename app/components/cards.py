@@ -1,15 +1,11 @@
-"""
-EcoSense AI - Card Components
-Provides Stat Cards, Quick Action Cards, Species Cards, Threat Cards, and Health Score Cards.
-"""
-
+import textwrap
 import streamlit as st
 
 def render_stat_card(title: str, value: str, subtext: str = "", icon: str = "🌳"):
     """
     Renders a statistics card with top indicator bar, icon, value and subtext.
     """
-    html = f"""
+    html = textwrap.dedent(f"""
     <div class="eco-stat-card">
         <div>
             <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -22,7 +18,7 @@ def render_stat_card(title: str, value: str, subtext: str = "", icon: str = "�
             {subtext}
         </div>
     </div>
-    """
+    """).strip()
     st.markdown(html, unsafe_allow_html=True)
 
 def render_quick_action_card(title: str, description: str, icon: str = "⚡", button_label: str = "Open", key: str = None) -> bool:
@@ -31,7 +27,7 @@ def render_quick_action_card(title: str, description: str, icon: str = "⚡", bu
     """
     with st.container():
         st.markdown(
-            f"""
+            textwrap.dedent(f"""
             <div class="eco-quick-action">
                 <div class="eco-quick-icon">{icon}</div>
                 <div class="eco-quick-title">{title}</div>
@@ -39,7 +35,7 @@ def render_quick_action_card(title: str, description: str, icon: str = "⚡", bu
                     {description}
                 </div>
             </div>
-            """,
+            """).strip(),
             unsafe_allow_html=True
         )
         return st.button(button_label, key=key, use_container_width=True, type="secondary")
@@ -48,7 +44,7 @@ def render_species_card(name: str, confidence: int, time_str: str, icon: str = "
     """
     Renders a species detection card.
     """
-    html = f"""
+    html = textwrap.dedent(f"""
     <div class="eco-card" style="padding: 1rem 1.25rem; display: flex; align-items: center; justify-content: space-between;">
         <div style="display: flex; align-items: center; gap: 1rem;">
             <div style="font-size: 2rem;">{icon}</div>
@@ -61,7 +57,7 @@ def render_species_card(name: str, confidence: int, time_str: str, icon: str = "
             <span class="eco-badge eco-badge-healthy">{confidence}% Match</span>
         </div>
     </div>
-    """
+    """).strip()
     st.markdown(html, unsafe_allow_html=True)
 
 def render_threat_card(threat_type: str, priority: str, zone: str, time_str: str, icon: str = "⚠"):
@@ -69,7 +65,7 @@ def render_threat_card(threat_type: str, priority: str, zone: str, time_str: str
     Renders an environmental threat alert card.
     """
     badge_class = "eco-badge-critical" if priority in ["High", "Critical"] else "eco-badge-warning"
-    html = f"""
+    html = textwrap.dedent(f"""
     <div class="eco-card" style="padding: 1rem 1.25rem; border-left: 4px solid #DC2626;">
         <div style="display: flex; justify-content: space-between; align-items: flex-start;">
             <div style="display: flex; align-items: center; gap: 0.75rem;">
@@ -82,5 +78,5 @@ def render_threat_card(threat_type: str, priority: str, zone: str, time_str: str
             <span class="eco-badge {badge_class}">{priority}</span>
         </div>
     </div>
-    """
+    """).strip()
     st.markdown(html, unsafe_allow_html=True)

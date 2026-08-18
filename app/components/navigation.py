@@ -1,8 +1,4 @@
-"""
-EcoSense AI - Navigation Components
-Includes Sidebar Desktop Navigation, TopBar Header, and Page Title Headers.
-"""
-
+import textwrap
 import streamlit as st
 from app.config import SIDEBAR_NAV_ITEMS, APP_NAME, APP_TAGLINE, APP_VERSION
 from app.state.session_state import get_state, set_state
@@ -16,13 +12,13 @@ def render_sidebar():
     with st.sidebar:
         # Branding Header
         st.markdown(
-            f"""
+            textwrap.dedent(f"""
             <div style="padding: 0.5rem 0 1rem 0; text-align: center;">
                 <div style="font-size: 2.2rem; margin-bottom: 0.25rem;">🌳</div>
                 <div style="font-size: 1.25rem; font-weight: 800; color: #1E4D2B; letter-spacing: -0.02em;">{APP_NAME}</div>
                 <div style="font-size: 0.725rem; color: #64748B; margin-top: 0.15rem;">{APP_TAGLINE}</div>
             </div>
-            """,
+            """).strip(),
             unsafe_allow_html=True
         )
 
@@ -56,11 +52,11 @@ def render_sidebar():
             logout_user()
 
         st.markdown(
-            f"""
+            textwrap.dedent(f"""
             <div style="text-align: center; font-size: 0.725rem; color: #94A3B8; margin-top: 1rem;">
                 {APP_NAME} v{APP_VERSION}<br>© 2026 Eco-Acoustic Tech
             </div>
-            """,
+            """).strip(),
             unsafe_allow_html=True
         )
 
@@ -75,18 +71,18 @@ def render_topbar():
 
     with col1:
         st.markdown(
-            f"""
+            textwrap.dedent(f"""
             <div>
                 <div class="eco-greeting">Good Morning, {user_info.get('role', 'Officer')} 👋</div>
                 <div class="eco-subtitle">📅 {format_current_date()} • {user_info.get('organization', 'Forest Department')}</div>
             </div>
-            """,
+            """).strip(),
             unsafe_allow_html=True
         )
 
     with col2:
         st.markdown(
-            f"""
+            textwrap.dedent(f"""
             <div style="display: flex; align-items: center; justify-content: flex-end; gap: 1rem;">
                 <div style="position: relative; background: #E8F5E9; padding: 0.5rem 0.75rem; border-radius: 12px; font-size: 1.1rem; cursor: pointer;">
                     🔔
@@ -97,7 +93,7 @@ def render_topbar():
                     <span>{user_info.get('name', 'User')}</span>
                 </div>
             </div>
-            """,
+            """).strip(),
             unsafe_allow_html=True
         )
 
@@ -106,7 +102,7 @@ def render_page_header(title: str, subtitle: str, breadcrumb: str = "Dashboard /
     Standardized header present on every subpage according to UX Rule #9.
     """
     st.markdown(
-        f"""
+        textwrap.dedent(f"""
         <div style="margin-bottom: 1.5rem;">
             <div style="font-size: 0.8rem; font-weight: 600; color: #2E7D32; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.25rem;">
                 📍 {breadcrumb}
@@ -118,6 +114,6 @@ def render_page_header(title: str, subtitle: str, breadcrumb: str = "Dashboard /
                 {subtitle}
             </div>
         </div>
-        """,
+        """).strip(),
         unsafe_allow_html=True
     )

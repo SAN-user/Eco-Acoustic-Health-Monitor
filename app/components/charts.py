@@ -41,7 +41,7 @@ def render_health_trend_chart(df: pd.DataFrame, dark_mode: bool = False):
 
     fig.update_layout(
         title=dict(text="<b>Weekly Forest Health Trend</b>", font=dict(size=15, color=text_color)),
-        xaxis=dict(title=None, showgrid=False, font=dict(color=text_color)),
+        xaxis=dict(title=None, showgrid=False, tickfont=dict(color=text_color)),
         yaxis=dict(title="Health Score (%)", range=[60, 100], showgrid=True, gridcolor='rgba(100,116,139,0.1)'),
         margin=dict(l=20, r=20, t=40, b=20),
         height=280,
