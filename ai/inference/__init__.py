@@ -4,11 +4,17 @@ Provides AST model inference, probability extraction, threat classification,
 and Wildlife-Specific classification & feature profiling.
 """
 
-from ai.inference.sound_classifier import (
-    run_ast_inference,
-    classify_audioset_category,
-    evaluate_threat_status
-)
+try:
+    from ai.inference.sound_classifier import (
+        run_ast_inference,
+        classify_audioset_category,
+        evaluate_threat_status
+    )
+except ImportError:
+    run_ast_inference = None
+    classify_audioset_category = None
+    evaluate_threat_status = None
+
 from ai.inference.wildlife_classifier import run_wildlife_inference
 
 __all__ = [

@@ -35,7 +35,8 @@ def create_synthetic_wav(filepath: Path, duration_sec: float = 3.5, sample_rate:
         for i in range(n_samples):
             t = float(i) / sample_rate
             value = int(amplitude * math.sin(2.0 * math.pi * frequency * t))
-            frames.extend(struct.pack('<h', value))
+            sample_bytes = struct.pack('<h', value)
+            frames.extend(sample_bytes * channels)
             
         wav_file.writeframes(frames)
 
@@ -80,7 +81,7 @@ def main():
     assert meta_wav["format"] == "WAV", f"Expected WAV, got {meta_wav['format']}"
     assert meta_wav["sample_rate_hz"] == 44100, f"Expected 44100 Hz, got {meta_wav['sample_rate_hz']}"
     assert meta_wav["channels"] == 2, f"Expected 2 channels, got {meta_wav['channels']}"
-    assert abs(meta_wav["duration_sec"] - 2.0) < 0.1, f"Expected ~2.0s, got {meta_wav['duration_sec']}"
+    assert abs(meta_wav["duration_sec"] - 4.0) < 0.1, f"Expected ~4.0s, got {meta_wav['duration_sec']}"
     print("✅ WAV Metadata extraction passed.")
 
     # 4. Test File Persistence via save_audio_file

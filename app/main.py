@@ -55,9 +55,12 @@ from app.views.reports import render_reports_page
 from app.views.settings import render_settings_page
 from app.views.profile import render_profile_page
 
+from app.services.database_service import init_database
+
 def main():
-    # Initialize Session State
+    # Initialize Session State & Database
     init_session_state()
+    init_database()
 
     # Route Guard & Active Page Resolution
     active_page = enforce_route_guard()

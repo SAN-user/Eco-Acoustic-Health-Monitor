@@ -5,6 +5,7 @@ interactive Mel Spectrogram, Hugging Face AudioSpectrogramTransformer (AST) soun
 and Module 4 Wildlife Acoustic Feature Profiling & Ecosystem Assessment.
 """
 
+import textwrap
 from pathlib import Path
 import streamlit as st
 import numpy as np
@@ -57,30 +58,31 @@ def render_analysis_page():
         bitrate_str = f"{meta['bitrate'] // 1000} kbps" if meta.get("bitrate") else "N/A"
 
         st.markdown(
-            f"""
-            <div class="eco-card" style="margin-bottom: 1.25rem; padding: 1.25rem;">
-                <div style="font-weight: 700; font-size: 1.1rem; color: #1E4D2B; margin-bottom: 0.5rem;">
-                    🎵 Active Soundscape File: {meta.get('filename', 'Unknown')}
+            textwrap.dedent(f"""
+            <div class="eco-card" style="background: #14201C; border: 1px solid #243630; border-radius: 14px; padding: 1.25rem; margin-bottom: 1.25rem;">
+                <div style="font-weight: 800; font-size: 1.15rem; color: #F8FAFC; margin-bottom: 0.5rem; display: flex; align-items: center; justify-content: space-between;">
+                    <span>🎵 Active Soundscape File: {meta.get('filename', 'Unknown')}</span>
+                    <span class="eco-badge eco-badge-info">Ready for Inference</span>
                 </div>
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.75rem; font-size: 0.88rem; color: #334155;">
-                    <div><b>Original Format:</b> {meta.get('format', 'N/A')}</div>
-                    <div><b>Original Duration:</b> {format_duration(int(round(meta.get('duration_sec', 0))))} ({meta.get('duration_sec')}s)</div>
-                    <div><b>Original Sample Rate:</b> {meta.get('sample_rate_hz')} Hz</div>
-                    <div><b>Original Channels:</b> {channels_str}</div>
-                    <div><b>File Size:</b> {format_file_size(meta.get('size_bytes', 0))}</div>
-                    <div><b>Bitrate:</b> {bitrate_str}</div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.75rem; font-size: 0.85rem; color: #94A3B8;">
+                    <div><b style="color: #F8FAFC;">Format:</b> {meta.get('format', 'N/A').upper()}</div>
+                    <div><b style="color: #F8FAFC;">Duration:</b> {format_duration(int(round(meta.get('duration_sec', 0))))} ({meta.get('duration_sec')}s)</div>
+                    <div><b style="color: #F8FAFC;">Sample Rate:</b> {meta.get('sample_rate_hz')} Hz</div>
+                    <div><b style="color: #F8FAFC;">Channels:</b> {channels_str}</div>
+                    <div><b style="color: #F8FAFC;">File Size:</b> {format_file_size(meta.get('size_bytes', 0))}</div>
+                    <div><b style="color: #F8FAFC;">Bitrate:</b> {bitrate_str}</div>
                 </div>
-                <div style="font-size: 0.8rem; color: #64748B; margin-top: 0.6rem; word-break: break-all;">
-                    📁 <b>Saved File Path:</b> <code>{file_path}</code>
+                <div style="font-size: 0.775rem; color: #64748B; margin-top: 0.75rem; word-break: break-all; background: #0B1311; padding: 0.4rem 0.75rem; border-radius: 8px;">
+                    📁 <b>Audio File Location:</b> <code>{file_path}</code>
                 </div>
             </div>
-            """,
+            """).strip(),
             unsafe_allow_html=True
         )
 
         # 2. Run / Cache Audio Preprocessing Pipeline (Module 2)
         if not prep_data or prep_data.get("file_path") != file_path:
-            with st.spinner("⚡ Running Librosa audio preprocessing (Resampling to 16kHz, Mono Conversion, Normalization & Mel Spectrogram)..."):
+            with st.spinner("⚡ Running Librosa audio preprocessing (16kHz Mono Resampling & Mel Spectrogram)..."):
                 try:
                     prep_data = preprocess_audio_pipeline(file_path, target_sr=16000)
                     set_state("preprocessed_audio", prep_data)
@@ -88,28 +90,119 @@ def render_analysis_page():
                     st.error(f"❌ Audio Preprocessing Pipeline Failed: {str(e)}")
                     prep_data = None
 
-        # 3. Display Preprocessing Metrics & Spectrogram
-        if prep_data:
+        # 3. Run / Cache Module 3 AST AI Model Inference
+        if not analysis_results or analysis_results.get("file_path") != file_path:
+            with st.spinner("🤖 Running Hugging Face AST Model Inference (MIT/ast-finetuned-audioset)..."):
+                try:
+                    analysis_results = run_ast_inference(prep_data if prep_data else file_path, top_k=5)
+                    set_state("analysis_results", analysis_results)
+                except Exception as e_ast:
+                    st.error(f"❌ AST AI Model Inference Failed: {str(e_ast)}")
+                    analysis_results = None
+
+        # 4. Run / Cache Module 4 Wildlife Feature Extraction & Classifier
+        if not wildlife_results or str(Path(wildlife_results.get("file_path", "")).resolve()) != str(Path(file_path).resolve()):
+            with st.spinner("🌿 Extracting Module 4 Acoustic Features & Checking 5-Class Wildlife Model..."):
+                try:
+                    wildlife_results = run_wildlife_inference(prep_data if prep_data else file_path)
+                    set_state("wildlife_results", wildlife_results)
+                except Exception as e_w:
+                    st.error(f"❌ Module 4 Feature Extraction Failed: {str(e_w)}")
+                    wildlife_results = None
+
+        # Compute Ecosystem Health Score (100% UNCHANGED calculation)
+        if analysis_results:
+            ast_conf_pct = float(analysis_results.get("confidence_pct", 0.0))
+            threat_info = analysis_results.get("threat_status", {})
+            health_score = max(35, 95 - 35) if threat_info.get("has_threat") else min(98, max(75, int(75 + ast_conf_pct * 0.2)))
+        else:
+            health_score = 85
+
+        # 5. Top 4 Result KPI Cards
+        st.markdown("<h3 style='font-size: 1.15rem; font-weight: 700; color: #F8FAFC; margin-bottom: 0.75rem;'>🎯 Primary Analysis Summary</h3>", unsafe_allow_html=True)
+        r1, r2, r3, r4 = st.columns(4)
+
+        with r1:
             st.markdown(
-                f"""
-                <div class="eco-card" style="margin-bottom: 1.25rem; padding: 1rem 1.25rem; background-color: #F8FAFC; border-left: 4px solid #2E7D32;">
-                    <div style="font-weight: 700; font-size: 0.95rem; color: #1E4D2B; margin-bottom: 0.4rem;">
-                        ⚙️ Module 2 Preprocessing Pipeline Status: <span class="eco-badge eco-badge-healthy">Completed (16,000 Hz Mono)</span>
+                textwrap.dedent(f"""
+                <div class="eco-stat-card" style="background: #14201C; border: 1px solid #243630; border-radius: 14px; padding: 1.25rem; text-align: center;">
+                    <div style="font-size: 0.775rem; font-weight: 700; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.05em;">🌲 Ecosystem Health</div>
+                    <div style="font-size: 2.2rem; font-weight: 800; color: {'#F87171' if health_score < 70 else '#10B981'}; margin: 0.3rem 0; line-height: 1;">
+                        {health_score} <span style="font-size: 1.1rem; color: #94A3B8; font-weight: 600;">/ 100</span>
                     </div>
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0.5rem; font-size: 0.85rem; color: #475569;">
-                        <div><b>Target Sample Rate:</b> {prep_data['sample_rate']} Hz</div>
-                        <div><b>Processed Duration:</b> {prep_data['duration']} s</div>
-                        <div><b>Signal Channels:</b> Mono (1D)</div>
-                        <div><b>Amplitude Normalization:</b> Peak [-1.0, 1.0]</div>
-                        <div><b>Mel Frequency Bins:</b> {prep_data['n_mels']} mels</div>
-                        <div><b>Spectrogram Frames:</b> {prep_data['num_frames']} frames</div>
-                    </div>
+                    <div style="font-size: 0.8rem; color: #94A3B8;">Forest Health Index</div>
                 </div>
-                """,
+                """).strip(),
                 unsafe_allow_html=True
             )
 
-            # Render Mel Spectrogram Plotly Chart
+        with r2:
+            w_name = wildlife_results.get("predicted_species", "N/A") if wildlife_results else "N/A"
+            w_pct = f"{wildlife_results.get('confidence_pct', 0.0):.0f}%" if wildlife_results and wildlife_results.get('confidence_pct') else ""
+            st.markdown(
+                textwrap.dedent(f"""
+                <div class="eco-stat-card" style="background: #14201C; border: 1px solid #243630; border-radius: 14px; padding: 1.25rem; text-align: center;">
+                    <div style="font-size: 0.775rem; font-weight: 700; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.05em;">🐦 Wildlife Prediction</div>
+                    <div style="font-size: 1.35rem; font-weight: 800; color: #34D399; margin: 0.4rem 0; line-height: 1.2;">
+                        {w_name}
+                    </div>
+                    <div style="font-size: 0.8rem; color: #94A3B8;">Confidence: <b style="color: #F8FAFC;">{w_pct}</b></div>
+                </div>
+                """).strip(),
+                unsafe_allow_html=True
+            )
+
+        with r3:
+            ast_name = analysis_results.get("predicted_class", "N/A") if analysis_results else "N/A"
+            ast_pct = f"{analysis_results.get('confidence_pct', 0.0):.0f}%" if analysis_results else ""
+            st.markdown(
+                textwrap.dedent(f"""
+                <div class="eco-stat-card" style="background: #14201C; border: 1px solid #243630; border-radius: 14px; padding: 1.25rem; text-align: center;">
+                    <div style="font-size: 0.775rem; font-weight: 700; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.05em;">🔊 Sound Event (AST)</div>
+                    <div style="font-size: 1.35rem; font-weight: 800; color: #60A5FA; margin: 0.4rem 0; line-height: 1.2;">
+                        {ast_name}
+                    </div>
+                    <div style="font-size: 0.8rem; color: #94A3B8;">Confidence: <b style="color: #F8FAFC;">{ast_pct}</b></div>
+                </div>
+                """).strip(),
+                unsafe_allow_html=True
+            )
+
+        with r4:
+            has_threat = analysis_results.get("threat_status", {}).get("has_threat", False) if analysis_results else False
+            threat_label = analysis_results.get("threat_status", {}).get("detected_class", "SAFE") if analysis_results else "SAFE"
+            st.markdown(
+                textwrap.dedent(f"""
+                <div class="eco-stat-card" style="background: #14201C; border: 1px solid #243630; border-radius: 14px; padding: 1.25rem; text-align: center;">
+                    <div style="font-size: 0.775rem; font-weight: 700; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.05em;">⚠️ Threat Status</div>
+                    <div style="font-size: 1.2rem; font-weight: 800; color: {'#F87171' if has_threat else '#34D399'}; margin: 0.4rem 0; line-height: 1.2;">
+                        {'🔴 ' + threat_label.upper() if has_threat else '🟢 SAFE'}
+                    </div>
+                    <div style="font-size: 0.8rem; color: #94A3B8;">
+                        {'Anthropogenic Alert' if has_threat else 'Natural Soundscape'}
+                    </div>
+                </div>
+                """).strip(),
+                unsafe_allow_html=True
+            )
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        # 6. Prominent Mel Spectrogram Section
+        if prep_data:
+            st.markdown(
+                textwrap.dedent("""
+                <div style="background: #14201C; border: 1px solid #243630; border-radius: 14px; padding: 1.25rem; margin-bottom: 1.5rem;">
+                    <div style="font-size: 1.1rem; font-weight: 700; color: #F8FAFC; margin-bottom: 0.25rem;">
+                        📊 Acoustic Spectrogram
+                    </div>
+                    <div style="font-size: 0.825rem; color: #94A3B8; margin-bottom: 1rem;">
+                        Real 128-band Log-Mel Spectrogram computed from 16,000 Hz resampled mono audio signal using Librosa.
+                    </div>
+                """).strip(),
+                unsafe_allow_html=True
+            )
+
             try:
                 spec_db = prep_data["spectrogram_db"]
                 num_frames = spec_db.shape[1]
@@ -128,238 +221,188 @@ def render_analysis_page():
                     aspect="auto"
                 )
                 fig.update_layout(
-                    title=dict(
-                        text=f"🔊 Real Mel Spectrogram — {meta.get('filename', 'Audio')} (128 Mel Bins, 16kHz Resampled Mono)",
-                        font=dict(size=14, color="#1E4D2B")
-                    ),
-                    margin=dict(l=40, r=40, t=50, b=40),
-                    height=300,
+                    margin=dict(l=40, r=40, t=30, b=40),
+                    height=320,
                     paper_bgcolor="rgba(0,0,0,0)",
                     plot_bgcolor="rgba(0,0,0,0)",
-                    font=dict(family="Inter, sans-serif")
+                    font=dict(family="Inter, sans-serif", color="#94A3B8")
                 )
                 st.plotly_chart(fig, use_container_width=True)
             except Exception as e_plot:
                 st.warning(f"Could not render Mel Spectrogram plot: {str(e_plot)}")
 
-        # 4. Run / Cache Module 3 AST AI Model Inference
-        if not analysis_results or analysis_results.get("file_path") != file_path:
-            with st.spinner("🤖 Running Hugging Face AST Model Inference (MIT/ast-finetuned-audioset-10-10-0.4593)..."):
-                try:
-                    analysis_results = run_ast_inference(prep_data if prep_data else file_path, top_k=5)
-                    set_state("analysis_results", analysis_results)
-                except Exception as e_ast:
-                    st.error(f"❌ AST AI Model Inference Failed: {str(e_ast)}")
-                    analysis_results = None
+            st.markdown("</div>", unsafe_allow_html=True)
 
-        # 5. Display Genuine AST Model Inference Results (Module 3)
+        # 7. Wildlife Classifier & Probability Distribution Section
+        if wildlife_results and wildlife_results.get("model_trained"):
+            w_top = wildlife_results.get("top_predictions", [])
+            st.markdown(
+                textwrap.dedent("""
+                <div style="background: #14201C; border: 1px solid #243630; border-radius: 14px; padding: 1.25rem; margin-bottom: 1.5rem;">
+                    <div style="font-size: 1.1rem; font-weight: 700; color: #F8FAFC; margin-bottom: 0.2rem;">
+                        🌿 Wildlife Acoustic Probability Distribution
+                    </div>
+                    <div style="font-size: 0.825rem; color: #94A3B8; margin-bottom: 1rem;">
+                        <i>Model supports five target acoustic classes.</i> Predicted probabilities for bioacoustic soundscape profiles:
+                    </div>
+                """).strip(),
+                unsafe_allow_html=True
+            )
+
+            for item in w_top:
+                sp_disp = item["species"]
+                pct_val = item["pct"]
+                st.markdown(
+                    textwrap.dedent(f"""
+                    <div style="margin-bottom: 0.75rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.875rem; margin-bottom: 0.25rem;">
+                            <span style="font-weight: 600; color: #F8FAFC;">{sp_disp}</span>
+                            <span style="font-weight: 700; color: #10B981;">{pct_val:.1f}%</span>
+                        </div>
+                        <div style="background: #0B1311; border: 1px solid #243630; height: 10px; border-radius: 5px; overflow: hidden;">
+                            <div style="background: linear-gradient(90deg, #059669, #10B981); height: 100%; width: {min(100, max(2, pct_val))}%;"></div>
+                        </div>
+                    </div>
+                    """).strip(),
+                    unsafe_allow_html=True
+                )
+
+            st.markdown("</div>", unsafe_allow_html=True)
+
+        # 8. AST Environmental Sound Classification Section
         if analysis_results:
             top_class = analysis_results["predicted_class"]
             confidence_pct = analysis_results["confidence_pct"]
             threat_info = analysis_results["threat_status"]
-            latency_sec = analysis_results["inference_time_sec"]
             top_5 = analysis_results["top_5_predictions"]
 
-            st.divider()
             st.markdown(
-                f"""
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                    <h3 style="font-size: 1.25rem; font-weight: 700; color: #0F172A; margin: 0;">
-                        🤖 Module 3: AudioSpectrogramTransformer (AST) General AudioSet Classification
-                    </h3>
-                    <span style="font-size: 0.8rem; background-color: #E2E8F0; padding: 0.35rem 0.75rem; border-radius: 12px; color: #475569;">
-                        ⚡ Latency: <b>{latency_sec}s</b> • Model: <code>MIT/ast-finetuned-audioset</code>
-                    </span>
-                </div>
-                """,
+                textwrap.dedent(f"""
+                <div style="background: #14201C; border: 1px solid #243630; border-radius: 14px; padding: 1.25rem; margin-bottom: 1.5rem;">
+                    <div style="font-size: 1.1rem; font-weight: 700; color: #F8FAFC; margin-bottom: 0.25rem;">
+                        🤖 AST Environmental Sound Classification
+                    </div>
+                    <div style="font-size: 0.825rem; color: #94A3B8; margin-bottom: 1rem;">
+                        General AudioSet classification powered by Hugging Face <code>MIT/ast-finetuned-audioset</code>.
+                    </div>
+                """).strip(),
                 unsafe_allow_html=True
             )
 
-            # Top Metric Cards (3 Columns)
-            c1, c2, c3 = st.columns(3)
-
-            with c1:
+            if threat_info["has_threat"]:
                 st.markdown(
-                    f"""
-                    <div class="eco-card" style="text-align: center;">
-                        <div style="font-size: 0.8rem; font-weight: 700; color: #64748B; text-transform: uppercase;">Top AudioSet Category</div>
-                        <div style="font-size: 1.4rem; font-weight: 800; color: #1E4D2B; margin: 0.5rem 0; word-break: break-word;">
-                            {top_class}
+                    textwrap.dedent(f"""
+                    <div style="background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.35); border-radius: 10px; padding: 1rem; margin-bottom: 1rem;">
+                        <div style="font-weight: 800; color: #F87171; font-size: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                            🚨 Anthropogenic Threat Detected: {threat_info['detected_class']}
                         </div>
-                        <span class="eco-badge eco-badge-healthy">{confidence_pct:.1f}% Model Probability</span>
-                    </div>
-                    """,
-                    unsafe_allow_html=True
-                )
-
-            with c2:
-                threat_badge = "eco-badge-critical" if threat_info["has_threat"] else "eco-badge-healthy"
-                st.markdown(
-                    f"""
-                    <div class="eco-card" style="text-align: center;">
-                        <div style="font-size: 0.8rem; font-weight: 700; color: #64748B; text-transform: uppercase;">Threat Status Evaluation</div>
-                        <div style="font-size: 1.2rem; font-weight: 800; color: {'#DC2626' if threat_info['has_threat'] else '#1E4D2B'}; margin: 0.5rem 0;">
-                            {threat_info['status_title']}
-                        </div>
-                        <span class="eco-badge {threat_badge}">{threat_info['detected_class']}</span>
-                    </div>
-                    """,
-                    unsafe_allow_html=True
-                )
-
-            with c3:
-                # Dynamic Ecosystem Score: Derived project metric based on AudioSet soundscape stability & threat detection
-                health_score = max(35, 95 - 35) if threat_info["has_threat"] else min(98, max(75, int(75 + confidence_pct * 0.2)))
-                st.markdown(
-                    f"""
-                    <div class="eco-card" style="text-align: center;">
-                        <div style="font-size: 0.8rem; font-weight: 700; color: #64748B; text-transform: uppercase;">Acoustic Ecosystem Score</div>
-                        <div style="font-size: 1.6rem; font-weight: 800; color: {'#DC2626' if health_score < 70 else '#2E7D32'}; margin: 0.5rem 0;">
-                            {health_score}%
-                        </div>
-                        <span class="eco-badge {'eco-badge-critical' if health_score < 70 else 'eco-badge-healthy'}">
-                            {'Action Required' if threat_info['has_threat'] else 'Stable Soundscape'}
-                        </span>
-                    </div>
-                    """,
-                    unsafe_allow_html=True
-                )
-
-            # Top 5 AudioSet Predictions List
-            st.markdown("<h4 style='font-size: 1.05rem; font-weight: 700; margin-top: 1.25rem; color: #1E4D2B;'>📋 Top 5 AudioSet Predictions</h4>", unsafe_allow_html=True)
-            
-            for item in top_5:
-                category_badge = "eco-badge-critical" if item["category"] == "Potential Threat" else "eco-badge-healthy" if item["category"] == "Wildlife / Environmental" else "eco-badge-info"
-                st.markdown(
-                    f"""
-                    <div class="eco-card" style="padding: 0.75rem 1rem; margin-bottom: 0.5rem;">
-                        <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <div style="display: flex; align-items: center; gap: 0.75rem;">
-                                <span style="font-weight: 700; font-size: 0.95rem; color: #0F172A;">{item['class']}</span>
-                                <span class="eco-badge {category_badge}">{item['category']}</span>
-                            </div>
-                            <span style="font-weight: 700; font-size: 0.95rem; color: #1E4D2B;">{item['pct']:.2f}% Score</span>
-                        </div>
-                        <div style="background-color: #E2E8F0; height: 6px; border-radius: 3px; margin-top: 0.4rem; overflow: hidden;">
-                            <div style="background-color: {'#DC2626' if item['category'] == 'Potential Threat' else '#2E7D32'}; height: 100%; width: {min(100, max(2, item['pct']))}%;"></div>
+                        <div style="font-size: 0.825rem; color: #FCA5A5; margin-top: 0.25rem;">
+                            Confidence: {threat_info.get('confidence_pct', 0.0):.1f}% • AST threat signal detected in forest soundscape.
                         </div>
                     </div>
-                    """,
-                    unsafe_allow_html=True
-                )
-
-        # 6. Run / Cache Module 4 Wildlife Feature Extraction & Classifier
-        if not wildlife_results or str(Path(wildlife_results.get("file_path", "")).resolve()) != str(Path(file_path).resolve()):
-            with st.spinner("🌿 Extracting Module 4 Acoustic Features & Checking Domain Wildlife Model..."):
-                try:
-                    wildlife_results = run_wildlife_inference(prep_data if prep_data else file_path)
-                    set_state("wildlife_results", wildlife_results)
-                except Exception as e_w:
-                    st.error(f"❌ Module 4 Feature Extraction Failed: {str(e_w)}")
-                    wildlife_results = None
-
-        # 7. Display Module 4 Wildlife Classification & Real Acoustic Profile
-        if wildlife_results:
-            st.divider()
-            model_status = wildlife_results["model_status"]
-            is_trained = wildlife_results["model_trained"]
-            ac_prof = wildlife_results["acoustic_profile"]
-            w_latency = wildlife_results["inference_latency_sec"]
-
-            st.markdown(
-                f"""
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                    <h3 style="font-size: 1.25rem; font-weight: 700; color: #0F172A; margin: 0;">
-                        🌿 Module 4: Domain-Specific Wildlife Classification & Acoustic Profile
-                    </h3>
-                    <span style="font-size: 0.8rem; background-color: {'#E8F5E9' if is_trained else '#FEF3C7'}; color: {'#2E7D32' if is_trained else '#D97706'}; padding: 0.35rem 0.75rem; border-radius: 12px; font-weight: 700;">
-                        {model_status}
-                    </span>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-
-            if is_trained:
-                # Model Trained Case
-                w_pred = wildlife_results["predicted_species"]
-                w_conf = wildlife_results["confidence_pct"]
-
-                st.markdown(
-                    f"""
-                    <div class="eco-card" style="margin-bottom: 1.25rem; padding: 1.25rem;">
-                        <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <div>
-                                <div style="font-size: 0.8rem; font-weight: 700; color: #64748B; text-transform: uppercase;">Predicted Species</div>
-                                <div style="font-size: 1.6rem; font-weight: 800; color: #1E4D2B;">{w_pred}</div>
-                            </div>
-                            <span class="eco-badge eco-badge-healthy">{w_conf:.1f}% Confidence</span>
-                        </div>
-                    </div>
-                    """,
+                    """).strip(),
                     unsafe_allow_html=True
                 )
             else:
-                # Untrained Case (0 class folders in dataset/)
                 st.markdown(
-                    f"""
-                    <div class="eco-card" style="margin-bottom: 1.25rem; padding: 1.25rem; border-left: 4px solid #D97706; background-color: #FFFBEB;">
-                        <div style="font-weight: 700; font-size: 1rem; color: #92400E; margin-bottom: 0.3rem;">
-                            ℹ️ Wildlife Classifier Status: <span class="eco-badge eco-badge-warning">Not Trained</span>
+                    textwrap.dedent("""
+                    <div style="background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.35); border-radius: 10px; padding: 1rem; margin-bottom: 1rem;">
+                        <div style="font-weight: 800; color: #34D399; font-size: 0.95rem; display: flex; align-items: center; gap: 0.5rem;">
+                            🟢 No anthropogenic threat signal detected
                         </div>
-                        <div style="font-size: 0.85rem; color: #78350F; line-height: 1.5;">
-                            {wildlife_results['notice']}
+                        <div style="font-size: 0.8rem; color: #94A3B8; margin-top: 0.25rem;">
+                            *Note: A safe status indicates no strong anthropogenic threat frequencies matched the target classes in this audio window; it does not guarantee total absence of unmonitored human activity.*
                         </div>
                     </div>
-                    """,
+                    """).strip(),
                     unsafe_allow_html=True
                 )
 
-            # Display Real Extracted Librosa Acoustic Profile Metrics
-            st.markdown("<h4 style='font-size: 1.05rem; font-weight: 700; color: #1E4D2B; margin-bottom: 0.75rem;'>📊 Real Extracted Acoustic Profile Metrics (Librosa 46-Feature Vector)</h4>", unsafe_allow_html=True)
-            
-            st.markdown(
-                f"""
-                <div class="eco-card" style="padding: 1.25rem;">
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1rem; font-size: 0.88rem; color: #334155;">
-                        <div><b>Spectral Centroid:</b> {ac_prof['spectral_centroid_hz']} Hz</div>
-                        <div><b>Spectral Bandwidth:</b> {ac_prof['spectral_bandwidth_hz']} Hz</div>
-                        <div><b>Spectral Rolloff:</b> {ac_prof['spectral_rolloff_hz']} Hz</div>
-                        <div><b>RMS Energy:</b> {ac_prof['rms_energy']:.5f}</div>
-                        <div><b>Zero-Crossing Rate:</b> {ac_prof['zero_crossing_rate']:.5f}</div>
-                        <div><b>Base MFCC (1st):</b> {ac_prof['mfcc_base']}</div>
+            st.markdown("<div style='font-size: 0.9rem; font-weight: 700; color: #F8FAFC; margin-bottom: 0.6rem;'>Top 5 AudioSet Categories:</div>", unsafe_allow_html=True)
+            for item in top_5:
+                category_badge = "eco-badge-threat" if item["category"] == "Potential Threat" else "eco-badge-safe" if item["category"] == "Wildlife / Environmental" else "eco-badge-info"
+                st.markdown(
+                    textwrap.dedent(f"""
+                    <div style="background: #0B1311; border: 1px solid #243630; border-radius: 8px; padding: 0.6rem 0.85rem; margin-bottom: 0.4rem; display: flex; justify-content: space-between; align-items: center;">
+                        <div style="display: flex; align-items: center; gap: 0.6rem;">
+                            <span style="font-weight: 600; font-size: 0.875rem; color: #F8FAFC;">{item['class']}</span>
+                            <span class="eco-badge {category_badge}">{item['category']}</span>
+                        </div>
+                        <span style="font-weight: 700; font-size: 0.875rem; color: #10B981;">{item['pct']:.2f}% Score</span>
                     </div>
-                    <div style="font-size: 0.78rem; color: #64748B; margin-top: 0.75rem;">
-                        ⚡ Feature Extraction Latency: <b>{w_latency}s</b> • 46 MFCC/Spectral Features computed from 16kHz mono audio.
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
+                    """).strip(),
+                    unsafe_allow_html=True
+                )
 
-            # Safe extraction of Module 3 AST results for Ecosystem Summary
-            ast_class_str = analysis_results.get('predicted_class', 'General Soundscape') if analysis_results else 'General Soundscape'
-            ast_conf_str = f"{analysis_results['confidence_pct']:.1f}%" if analysis_results else "N/A"
-            ast_threat_str = analysis_results.get('threat_status', {}).get('status_title', 'Evaluated') if analysis_results else 'Evaluated'
+            st.markdown("</div>", unsafe_allow_html=True)
 
-            # Ecosystem Assessment Summary Card
-            st.markdown("<h4 style='font-size: 1.05rem; font-weight: 700; margin-top: 1.25rem; color: #1E4D2B;'>🌳 Integrated Ecosystem Health Assessment</h4>", unsafe_allow_html=True)
-            st.info(
-                f"**Ecosystem Analysis Summary:**\n\n"
-                f"• **General AudioSet Soundscape:** Top detected sound is `{ast_class_str}` ({ast_conf_str} probability).\n"
-                f"• **Threat Indicator:** {ast_threat_str}.\n"
-                f"• **Acoustic Spectral Profile:** Spectral Centroid at {ac_prof['spectral_centroid_hz']} Hz with Rolloff at {ac_prof['spectral_rolloff_hz']} Hz.\n\n"
-                f"*ℹ️ Note: Acoustic Ecosystem Score is a derived project metric combining AudioSet soundscape classification, threat detections, and spectral acoustic stability. It is not a scientifically validated ecological index.*"
-            )
+        # Footnote
+        st.markdown(
+            textwrap.dedent("""
+            <div style="font-size: 0.775rem; color: #64748B; line-height: 1.5; margin-bottom: 1.5rem; background: #0F1A17; border: 1px solid #243630; padding: 0.85rem 1rem; border-radius: 10px;">
+                ℹ️ <b>Ecosystem Acoustic Score (heuristic):</b> This project-specific heuristic metric is derived from the top AudioSet classification confidence and threat status. It is not a scientifically validated ecological health index.
+            </div>
+            """).strip(),
+            unsafe_allow_html=True
+        )
+
+        # 9. Persist Real Analysis & Threat Alert to SQLite Database (Task 3 & 11)
+        if meta and analysis_results and wildlife_results:
+            last_saved_path = get_state("last_saved_db_file_path")
+            if last_saved_path != file_path:
+                try:
+                    from app.services.database_service import save_analysis, save_alert
+                    threat_info = analysis_results.get("threat_status", {})
+                    ast_conf_pct = float(analysis_results.get("confidence_pct", 0.0))
+                    calculated_health_score = max(35, 95 - 35) if threat_info.get("has_threat") else min(98, max(75, int(75 + ast_conf_pct * 0.2)))
+                    analysis_db_payload = {
+                        "filename": meta.get("filename", "audio.wav"),
+                        "duration_sec": meta.get("duration_sec", 0.0),
+                        "sample_rate": meta.get("sample_rate_hz", 16000),
+                        "channels": meta.get("channels", 1),
+                        "ast_top_label": analysis_results.get("predicted_class", "Unknown"),
+                        "ast_confidence": round(ast_conf_pct / 100.0, 4),
+                        "threat_detected": 1 if threat_info.get("has_threat") else 0,
+                        "threat_label": threat_info.get("detected_class", "None"),
+                        "threat_confidence": round(float(threat_info.get("confidence_pct", 0.0)) / 100.0, 4),
+                        "wildlife_species": wildlife_results.get("predicted_species", "Model File Missing / Untrained"),
+                        "wildlife_species_key": wildlife_results.get("raw_species_key", "untrained"),
+                        "wildlife_confidence": float(wildlife_results.get("confidence", 0.0)),
+                        "health_score": calculated_health_score,
+                        "audio_path": file_path
+                    }
+                    inserted_analysis_id = save_analysis(analysis_db_payload)
+                    # Create real alert record if threat is detected
+                    if threat_info.get("has_threat"):
+                        alert_db_payload = {
+                            "analysis_id": inserted_analysis_id,
+                            "alert_type": f"Threat Detected: {threat_info.get('detected_class', 'Acoustic Threat')}",
+                            "message": f"Acoustic threat '{threat_info.get('detected_class')}' detected with {threat_info.get('confidence_pct', 0.0):.1f}% confidence in soundscape '{meta.get('filename')}'",
+                            "confidence": round(float(threat_info.get("confidence_pct", 0.0)) / 100.0, 4),
+                            "acknowledged": 0
+                        }
+                        save_alert(alert_db_payload)
+                    set_state("last_saved_db_file_path", file_path)
+                except Exception as e_db:
+                    st.warning(f"Note: Could not save analysis to local SQLite database: {str(e_db)}")
 
     else:
-        st.info("ℹ️ No custom recording uploaded. Upload an audio file from the Upload Audio screen to view real preprocessing, Mel Spectrogram, AST AI classification, and Module 4 Wildlife profiling.")
-
-    st.divider()
+        st.markdown(
+            textwrap.dedent("""
+            <div style="text-align: center; padding: 3rem 1.5rem; background: #14201C; border: 1px solid #243630; border-radius: 14px; margin-bottom: 1.5rem;">
+                <div style="font-size: 3rem; margin-bottom: 0.5rem;">🎧</div>
+                <div style="font-weight: 700; font-size: 1.1rem; color: #F8FAFC;">No Audio Recording Analyzed Yet</div>
+                <div style="font-size: 0.875rem; color: #94A3B8; margin-top: 0.35rem;">
+                    Upload a forest recording from the <b>Upload Audio</b> page to view real-time preprocessing, Mel Spectrogram, AST sound classification, and Module 4 Wildlife profiling.
+                </div>
+            </div>
+            """).strip(),
+            unsafe_allow_html=True
+        )
 
     col_btn1, col_btn2 = st.columns(2)
     with col_btn1:
-        if primary_button("Generate & Save Report →", key="btn_save_analysis_report", use_container_width=True):
+        if primary_button("View & Export Report →", key="btn_save_analysis_report", use_container_width=True):
             navigate_to(PAGE_REPORTS)
 
     with col_btn2:

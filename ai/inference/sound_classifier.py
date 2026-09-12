@@ -8,6 +8,7 @@ and measures inference latency.
 import time
 from pathlib import Path
 from typing import Dict, Any, List, Union
+import numpy as np
 import torch
 
 from ai.preprocessing import preprocess_audio_pipeline
@@ -26,6 +27,30 @@ THREAT_KEYWORDS = {
 }
 
 WILDLIFE_KEYWORDS = ["bird", "animal", "wild", "natural", "rain", "wind", "fowl", "rooster", "crow", "frog", "bark"]
+
+# Keep each AST call below the feature extractor's 1,024-frame limit. At 16 kHz,
+# a 10-second waveform produces fewer than 1,024 10 ms feature frames.
+AST_CHUNK_DURATION_SEC = 10.0
+
+
+def split_waveform_into_ast_chunks(
+    waveform: np.ndarray,
+    sample_rate: int,
+    chunk_duration_sec: float = AST_CHUNK_DURATION_SEC
+) -> List[np.ndarray]:
+    """Splits a mono waveform into contiguous AST-safe chunks.
+
+    Clips no longer than one chunk are returned unchanged so existing short-audio
+    inference continues to use the same extractor/model call as before.
+    """
+    samples_per_chunk = int(sample_rate * chunk_duration_sec)
+    if samples_per_chunk <= 0:
+        raise ValueError("AST chunk duration must produce at least one sample.")
+
+    if len(waveform) <= samples_per_chunk:
+        return [waveform]
+
+    return [waveform[start:start + samples_per_chunk] for start in range(0, len(waveform), samples_per_chunk)]
 
 
 def classify_audioset_category(label: str) -> str:
@@ -102,23 +127,28 @@ def run_ast_inference(
     # 2. Get AST Model and Feature Extractor Singleton
     feature_extractor, model = get_ast_model_and_extractor()
 
-    # 3. Process waveform through AST Feature Extractor
-    # Note: ASTFeatureExtractor transforms 16kHz raw audio into AST input features
-    inputs = feature_extractor(
-        waveform,
-        sampling_rate=sample_rate,
-        return_tensors="pt"
-    )
+    # 3. Split recordings longer than one AST-safe window. Short recordings stay
+    # on the original one-call path. Each chunk is independently featurized and
+    # classified using the unchanged AST model and sigmoid multi-label outputs.
+    waveform_chunks = split_waveform_into_ast_chunks(waveform, sample_rate)
+    chunk_probabilities = []
 
-    # 4. Run PyTorch Forward Pass
     with torch.no_grad():
-        outputs = model(**inputs)
-        logits = outputs.logits
+        for waveform_chunk in waveform_chunks:
+            inputs = feature_extractor(
+                waveform_chunk,
+                sampling_rate=sample_rate,
+                return_tensors="pt"
+            )
+            outputs = model(**inputs)
+            chunk_probabilities.append(torch.sigmoid(outputs.logits[0]).cpu().numpy())
 
-    # 5. Convert Logits to Sigmoid Probabilities (AudioSet multi-label classification)
-    probabilities = torch.sigmoid(logits[0]).cpu().numpy()
+    # 4. Aggregate chunk-level sigmoid vectors with per-label max pooling. This
+    # preserves the strongest detection for each AudioSet label anywhere in the
+    # recording instead of diluting short events across quiet chunks.
+    probabilities = np.max(np.stack(chunk_probabilities), axis=0)
 
-    # 6. Extract Top-K AudioSet Classes
+    # 5. Extract Top-K AudioSet Classes
     top_k_indices = probabilities.argsort()[-top_k:][::-1]
     
     id2label = model.config.id2label

@@ -19,8 +19,8 @@ MODEL_SAVE_PATH = Path(__file__).resolve().parent / "wildlife_model.joblib"
 
 def extract_acoustic_features(waveform: np.ndarray, sr: int = 16000) -> Tuple[np.ndarray, Dict[str, float]]:
     """
-    Extracts 45 acoustic features (20 MFCC means, 20 MFCC stds, Spectral Centroid,
-    Bandwidth, Rolloff, Zero Crossing Rate, RMS Energy) from a 1D mono waveform.
+    Extracts 46 acoustic features (20 MFCC means, 20 MFCC stds, Spectral Centroid Mean/Std,
+    Bandwidth Mean, Rolloff Mean, Zero Crossing Rate Mean, RMS Energy Mean) from a 1D mono waveform.
     
     Args:
         waveform: 1D float32 normalized mono audio signal.
@@ -58,7 +58,7 @@ def extract_acoustic_features(waveform: np.ndarray, sr: int = 16000) -> Tuple[np
     rms = librosa.feature.rms(y=waveform)
     rms_mean = float(np.mean(rms))
 
-    # Concatenate into 45-dimensional feature vector
+    # Concatenate into 46-dimensional feature vector
     feature_vector = np.concatenate([
         mfcc_means,
         mfcc_stds,
@@ -83,8 +83,9 @@ def train_wildlife_model(
     model_save_path: Path = MODEL_SAVE_PATH
 ) -> Dict[str, Any]:
     """
-    Scans dataset_dir for class subfolders, extracts features, trains a RandomForestClassifier,
-    and serializes model file if multiple classes exist.
+    Scans dataset_dir for class subfolders, segments audio into 5s windows,
+    extracts 46 Librosa features, executes GroupShuffleSplit anti-leakage split by recording_id,
+    trains a RandomForestClassifier, and serializes payload to joblib.
     """
     dir_path = Path(dataset_dir).resolve()
     if not dir_path.exists():
@@ -95,61 +96,85 @@ def train_wildlife_model(
             "classes": []
         }
 
-    # Discover class subfolders containing audio files
     class_folders = [d for d in dir_path.iterdir() if d.is_dir()]
-    valid_classes = []
-    features_list = []
-    labels_list = []
+    feature_rows = []
 
-    for folder in class_folders:
-        audio_files = list(folder.glob("*.wav")) + list(folder.glob("*.mp3"))
-        if audio_files:
-            valid_classes.append(folder.name)
-            for file_p in audio_files:
-                try:
-                    y, sr = librosa.load(str(file_p), sr=16000, mono=True)
-                    if len(y) >= 2048:
-                        y_norm = librosa.util.normalize(y)
-                        feat, _ = extract_acoustic_features(y_norm, sr=sr)
-                        features_list.append(feat)
-                        labels_list.append(folder.name)
-                except Exception:
+    window_samples = int(5.0 * 16000)
+    hop_samples = int(2.5 * 16000)
+
+    for folder in sorted(class_folders):
+        species_label = folder.name
+        audio_files = sorted(list(folder.glob("*.wav")) + list(folder.glob("*.mp3")))
+
+        for file_p in audio_files:
+            rec_id = file_p.stem
+            try:
+                y, sr = librosa.load(str(file_p), sr=16000, mono=True)
+                if y is None or len(y) < 2048:
                     continue
 
-    num_classes = len(set(labels_list))
-    num_samples = len(features_list)
+                y_norm = librosa.util.normalize(y)
+                total_samples = len(y_norm)
 
-    if num_classes < 2 or num_samples < 4:
+                if total_samples <= window_samples:
+                    segments = [(0, total_samples)]
+                else:
+                    segments = []
+                    start = 0
+                    while start + window_samples <= total_samples:
+                        segments.append((start, start + window_samples))
+                        start += hop_samples
+
+                for start_sample, end_sample in segments:
+                    seg_w = y_norm[start_sample:end_sample]
+                    if len(seg_w) < 2048:
+                        continue
+                    feat, _ = extract_acoustic_features(seg_w, sr=sr)
+                    if len(feat) == 46:
+                        feature_rows.append({
+                            "recording_id": rec_id,
+                            "species": species_label,
+                            "features": feat
+                        })
+            except Exception:
+                continue
+
+    num_classes = len(set(r["species"] for r in feature_rows))
+    num_recordings = len(set(r["recording_id"] for r in feature_rows))
+
+    if num_classes < 2 or num_recordings < 4:
         return {
             "trained": False,
-            "reason": f"Insufficient dataset classes. Found {num_classes} classes and {num_samples} total audio samples. Multi-class wildlife classification requires at least 2 labeled species folders with audio samples.",
+            "reason": f"Insufficient dataset classes. Found {num_classes} classes and {num_recordings} unique recordings. Multi-class wildlife classification requires at least 2 labeled species folders with audio samples.",
             "num_classes": num_classes,
-            "classes": list(set(labels_list)),
-            "num_samples": num_samples
+            "classes": list(set(r["species"] for r in feature_rows)),
+            "num_samples": len(feature_rows)
         }
 
-    X = np.array(features_list, dtype=np.float32)
-    y = np.array(labels_list)
+    X = np.array([r["features"] for r in feature_rows], dtype=np.float32)
+    y = np.array([r["species"] for r in feature_rows])
+    groups = np.array([r["recording_id"] for r in feature_rows])
 
-    # Train / Test Split
-    if num_samples >= 10:
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
-    else:
-        X_train, X_test, y_train, y_test = X, X, y, y
+    # Anti-leakage GroupShuffleSplit by recording_id
+    from sklearn.model_selection import GroupShuffleSplit
+    gss = GroupShuffleSplit(n_splits=1, test_size=0.20, random_state=42)
+    train_idx, test_idx = next(gss.split(X, y, groups=groups))
+
+    X_train, X_test = X[train_idx], X[test_idx]
+    y_train, y_test = y[train_idx], y[test_idx]
 
     clf = RandomForestClassifier(n_estimators=100, random_state=42)
     clf.fit(X_train, y_train)
 
-    train_acc = accuracy_score(y_train, clf.predict(X_train))
-    test_acc = accuracy_score(y_test, clf.predict(X_test))
+    train_acc = float(accuracy_score(y_train, clf.predict(X_train)))
+    test_acc = float(accuracy_score(y_test, clf.predict(X_test)))
 
-    # Save model payload
     payload = {
         "model": clf,
         "classes": list(clf.classes_),
         "num_features": X.shape[1],
-        "train_accuracy": float(train_acc),
-        "test_accuracy": float(test_acc)
+        "train_accuracy": train_acc,
+        "test_accuracy": test_acc
     }
 
     model_save_path.parent.mkdir(parents=True, exist_ok=True)
@@ -160,7 +185,7 @@ def train_wildlife_model(
         "model_path": str(model_save_path),
         "num_classes": num_classes,
         "classes": list(clf.classes_),
-        "num_samples": num_samples,
+        "num_samples": len(feature_rows),
         "train_accuracy_pct": round(train_acc * 100, 2),
         "test_accuracy_pct": round(test_acc * 100, 2)
     }

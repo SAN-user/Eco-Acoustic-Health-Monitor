@@ -23,9 +23,20 @@ venv/
 trained_model/
 *.pth
 *.pt
+*.joblib
+wildlife_model.joblib
+
+# Generated Reports
+reports/*.csv
 
 # Dataset
 dataset/
+
+# SQLite Database
+data/
+data/*.db
+data/eco_acoustic.db
+
 
 # Uploaded audio files
 uploads/

@@ -10,3 +10,5 @@ soundfile>=0.12.1
 torch
 torchvision
 transformers
+joblib
+scikit-learn

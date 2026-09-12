@@ -26,13 +26,13 @@ def get_current_page() -> str:
     return get_state("current_page", PAGE_SPLASH)
 
 def is_authenticated() -> bool:
-    """Checks if current user session is authenticated."""
+    """Checks whether prototype session access is active."""
     return bool(get_state("authenticated", False))
 
 def enforce_route_guard() -> str:
     """
-    Verifies authentication state for protected pages.
-    If unauthenticated and attempting to visit a protected route, redirects to login.
+    Applies the prototype session-state gate for protected pages.
+    If prototype access is inactive, redirects to the prototype access screen.
     Returns the resolved page key to display.
     """
     current_page = get_current_page()
@@ -50,7 +50,7 @@ def enforce_route_guard() -> str:
 
 def login_user(email: str, remember: bool = False):
     """
-    Sets authentication state upon successful login and routes to Dashboard.
+    Starts prototype session access and routes to the Dashboard.
     """
     set_state("authenticated", True)
     set_state("remember_me", remember)
@@ -58,7 +58,7 @@ def login_user(email: str, remember: bool = False):
 
 def logout_user():
     """
-    Clears authentication state and routes back to Login.
+    Clears prototype session access and routes back to the prototype access screen.
     """
     set_state("authenticated", False)
     navigate_to(PAGE_LOGIN)
