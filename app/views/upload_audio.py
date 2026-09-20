@@ -19,15 +19,64 @@ from app.config import (
 from app.state.router import navigate_to
 from app.state.session_state import set_state
 from app.services.audio_service import extract_audio_metadata, save_audio_file
+from app.services.sensor_service import get_latest_sensor_recording
 
 def render_upload_audio_page():
     """Renders the audio upload UI page."""
-    render_page_header(
-        title="Analyze Forest Soundscape",
-        subtitle="Upload an audio recording to identify environmental sounds, wildlife activity, and potential anthropogenic threats.",
-        breadcrumb="Dashboard / Upload Audio"
-    )
+    # Check for the latest ESP32 sensor recording
+    sensor_recording = get_latest_sensor_recording()
 
+    if sensor_recording:
+        sensor_path, sensor_metadata = sensor_recording
+
+        st.success("🎙️ ESP32 Sensor Recording Detected")
+
+        st.markdown(
+            f"""
+            **File:** `{sensor_metadata["filename"]}`  
+            **Duration:** `{sensor_metadata["duration_sec"]:.2f} seconds`  
+            **Sample Rate:** `{sensor_metadata["sample_rate_hz"]} Hz`  
+            **Channels:** `{sensor_metadata["channels"]}`  
+            **Size:** `{sensor_metadata["size_bytes"] / 1024:.1f} KB`
+            """
+        )
+
+        st.info(
+            "A new recording was received from the ESP32 sensor."
+        )
+
+        if primary_button(
+            "Analyze ESP32 Sensor Recording →",
+            key="btn_analyze_esp32",
+            use_container_width=True
+        ):
+            # Store sensor recording using the same session-state
+            # structure expected by the existing analysis page.
+            sensor_metadata["file_path"] = str(sensor_path.resolve())
+
+            set_state(
+                "sensor_audio_file",
+                sensor_metadata["filename"]
+            )
+
+            set_state(
+                "sensor_audio_metadata",
+                sensor_metadata
+            )
+
+            # Pass the sensor recording into the existing AI pipeline.
+            set_state(
+                "uploaded_audio_file",
+                sensor_metadata["filename"]
+            )
+
+            set_state(
+                "uploaded_audio_metadata",
+                sensor_metadata
+            )
+
+            # Go to the existing Analysis page.
+            navigate_to(PAGE_ANALYSIS)
     # Visual Workflow Bar
     st.markdown(
         textwrap.dedent("""

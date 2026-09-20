@@ -41,6 +41,12 @@ def init_session_state():
     if "uploaded_audio_metadata" not in st.session_state:
         st.session_state.uploaded_audio_metadata = None
 
+    if "sensor_audio_file" not in st.session_state:
+        st.session_state.sensor_audio_file = None
+
+    if "sensor_audio_metadata" not in st.session_state:
+        st.session_state.sensor_audio_metadata = None
+
     if "analysis_in_progress" not in st.session_state:
         st.session_state.analysis_in_progress = False
 
